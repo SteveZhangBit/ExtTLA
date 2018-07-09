@@ -1,0 +1,566 @@
+/*
+ * This TLA+ specification is the model of the ROS reconfiguration
+ * framework by 2017 MSIT-ESE team.  See
+ * https://github.com/adityam1/turtlebot_SCN_MSIT_ESE/blob/kinetic_gazebo7
+ * /doc/Framework_model_rev6.docx
+ *
+ * In this specification, I try to focus on the reconfiguration portion of
+ * the framework:
+ *  1. The initialization of the System Configuration Node and
+ *  application node.
+ *  2. The procedure of entering the Safe mode.
+ *  3. The procedure of leaving the Safe mode.
+ */
+module ROSReconfig {
+
+  const Null;
+
+  /*
+   * The set of all the user application nodes in a ROS system.  It could
+   * be any node like client/server node or publisher/subscriber node.
+   */
+  const AppNode;
+
+  /*
+   * The System Configuration Node (SCN) in this ROS reconfiguration
+   * environment.  There should be only one SCN in the system.
+   */
+  const SCN;
+
+  /*
+   * All the nodes in the ROS system.
+   */
+  const Node = {{ AppNode \cup {SCN} }};
+
+  /*
+   * The states of the nodes.  Here, Safe mode represents the
+   * reconfiguration state.
+   *
+   * For SCN, it has the transition:
+   * NotExist -> Init -> Normal -> EnterSafe -> Safe
+   *  -> LeaveSafe -> Normal
+   *
+   * For application node, it has the transition:
+   *  NotExist -> Init -> Normal -> Safe -> Normal
+   *
+   * This spec also assumes a single-thread model, if a node is processing some
+   * thing, it should be in Processing mode.
+   */
+  enum NodeState = {
+    NotExist, Init, Normal, Processing, EnterSafe, Safe, LeaveSafe
+  };
+
+  /*
+   * The type of messages
+   */
+  enum MessageType = {
+    EnterSafe, LeaveSafe, OK, Err, ClientReq, ServerAck, InitStatus
+  };
+
+  /*
+   * Reconfiguration command sent by users to change the configuration
+   */
+  const UserCommand = {{ [cmd: { "SwapNode" }, src: AppNode, dst: AppNode] }};
+
+  /*
+   * The set of message types in the abstract model.
+   */
+  const Message = {{ [src: Node, msg: MessageType] }};
+
+  /*
+   * Channel is the set of all the incoming requests of a node.  Since we
+   * cannot guarantee the order of the messages, so I use set instead of
+   * sequence here.
+   */
+  const Channel = {{ SUBSET (Message \cup UserCommand) }};
+
+  /*
+   * A function from Node to NodeState.  It represents the current state
+   * of each node in the system.
+   */
+  var nodeStates: {{ [Node -> NodeState] }};
+
+  /*
+   * A function from Node to Channel.  It stores the incoming messages for
+   * each node.
+   */
+  var channels: {{ [Node -> NodeState] }};
+
+  /*
+   * A function from AppNode to a subset of AppNode. Each application node
+   * may depend on other nodes. For example, if a client node c would send
+   * request to server node s, then node c depends on node s. When entering
+   * Safe mode, SCN should send the request in sequence based on the
+   * dependencies.
+   */
+  var dependencies: {{ [AppNode -> SUBSET AppNode] }};
+
+  /*
+   * All the nodes related a reconfiguration event. SCN should let all the
+   * related nodes enter Safe mode before it can enter Safe mode.
+   */
+  var reconfigNodes: {{ SUBSET AppNode }};
+
+  /*
+   * The current reconfiguration command.
+   */
+  var curCmd: {{ UserCommand \cup {Null} }};
+
+  /*
+   * A new user application node is spawned. SCN is able to kill and start a
+   * new node during operation, thus it is essential to model the non-existance
+   * state of the node.
+   */
+  NodeSpawn(n: Node) {{
+    /\ nodeStates[n] = NodeState.NotExist
+    /\ nodeStates' = [nodeStates EXCEPT ![n] = NodeState.Init]
+  }}
+
+  /*
+   * The initialization operation of user application nodes in a typical ROS
+   * system.  An application node can be initialized only after the SCN has
+   * initialized.  If the SCN is already in Safe (reconfiguration) mode,
+   * this node should be initialized to Safe mode as well.  (The only case
+   * for this to happen is the system has to spawn a new node due to the
+   * reconfiguration.) Note: The application-specified initialization process
+   * should happend after this operation.
+   */
+  NodeInit(n: Node) {{
+    /\ nodeStates[n] = NodeState.Init
+    /*
+     * The SCN should be in the Normal mode.  In the document, SCN should
+     * reject all the registration requests when in Safe mode, except the
+     * new node started by SCN during reconfiguration phase.
+     */
+    /\ \/ /\ nodeStates[SCN] = NodeState.Normal
+          /\ nodeStates' = [nodeStates EXCEPT ![n] = NodeState.Normal]
+       /*
+        * IMPORTANT: The only exception here is that if the node is the one
+        * started by SCN during reconfiguration, SCN should accept its
+        * registration and let it enter safe mode. Otherwise, other node
+        * should wait until SCN back to Normal mode.
+        */
+       \/ /\ nodeStates[SCN] = NodeState.Safe
+          /\ curCmd.cmd = "SwapNode"
+          /\ curCmd.dst = n
+          /\ nodeStates' = [nodeStates EXCEPT ![n] = NodeState.Safe]
+       \/ UNCHANGED <<nodeStates>>
+  }}
+
+  /*
+   * The System Configuration Node (SCN) should always be the first node to
+   * be spawned in this reconfiguration environment.
+   */
+  SCNSpawn() {{
+    /\ nodeStates[SCN] = NodeState.NotExist
+    /\ nodeStates' = [nodeStates EXCEPT ![SCN] = NodeState.Init]
+  }}
+
+  /*
+   * The initialization phase of the SCN.  It should conditionally load
+   * saved state from the disk and advertise its services to store state and
+   * enter safe mode to the users.  Here, we just set it to Normal mode.
+   */
+  SCNInit() {{
+    /\ nodeStates[SCN] = NodeState.Init
+    /\ nodeStates' = [nodeStates EXCEPT ![SCN] = NodeState.Normal]
+  }}
+
+  /*
+   * User sends a request to swap two nodes.
+   */
+  SwapNode(src: AppNode, dst: AppNode) == {{
+    /\ channels' = [channels EXCEPT ![SCN] = @ \cup
+                      {[cmd |-> "SwapNode", src |-> src, dst |-> dst]}]
+  }}
+
+  /*
+   * When SCN receives a command from the users to change the configuration,
+   * it should then transit the system into Safe mode.
+   */
+  EnterSafeMode(cmd: UserCommand) {{
+    LET
+      // For now, I only handle the "SwapNode" request
+      related == {n \in AppNode: cmd.src \in dependencies[n]}
+    IN
+      /\ cmd \in channels[SCN]
+      /\ nodeStates[SCN] = NodeState.Normal
+      // The source node should be running
+      /\ nodeStates[src] \in { NodeState.Normal, NodeState.Processing }
+      // The target node should not exist
+      /\ nodeStates[dst] = NodeState.NotExist
+      /*
+       * Send "enter safe mode" request to all the related nodes. I made a
+       * change here. The document claims that it should "shutdown" the nodes
+       * witin a sequence. I doubt if that is needed.
+       */
+      /\ channels' = [n \in DOMAIN channels |->
+                        IF n \in related
+                          THEN channels[n] \cup
+                                {[src |-> SCN,
+                                  msg |-> MessageType.EnterSafe]}
+                          ELSE channels[n]]
+      /\ nodeStates' = [nodeStates EXCEPT ![SCN] = nodeStates.EnterSafe]
+      // SCN should wait all the related nodes
+      /\ reconfigNodes' = related
+      /\ curCmd' = cmd
+  }}
+
+  /*
+   * A node in the Normal mode receives the "enter safe mode" request and
+   * change to the Safe mode.  It should also send a OK response to SCN.
+   */
+  NodeEnterSafeMode(n: AppNode) {{
+    LET
+      msg == [src |-> SCN, msg |-> MessageType.EnterSafe]
+    IN
+      /\ nodeStates[n] = NodeState.Normal
+      /\ msg \in channels[n]
+      /\ nodeStates' = [nodeStates EXCEPT ![n] = NodeState.Safe]
+      /\ channels' = [channels EXCEPT
+                        ![SCN] = @ \cup {[src |-> n,
+                                          msg |-> MessageType.OK]},
+                        ![n] = @ \ {msg}]
+  }}
+
+  /*
+   * If SCN receives OK response from all the registered nodes, it should
+   * enter Safe mode.
+   */
+  SCNEnterSafeMode() {{
+    /\ nodeStates[SCN] = NodeState.EnterSafe
+    // Receive response from all the nodes the SCN is waiting on
+    /\ \A n \in reconfigNodes:
+        [src |-> n, msg |-> MessageType.OK] \in channels[SCN]
+    /\ nodeStates' = [nodeStates EXCEPT ![SCN] = NodeState.Safe]
+    /\ channels' = [channels EXCEPT ![SCN] = @ \
+                      {[src |-> n, msg |-> MessageType.OK]:
+                        n \in reconfigNodes}]
+  }}
+
+  /*
+   * Execute the swap node command.
+   */
+  ExecuteSwapNode() {{
+    /\ nodeStates[SCN] = NodeState.Safe
+    // The current command is "SwapNode"
+    /\ curCmd.cmd = "SwapNode"
+    // Kill the src node
+    /\ nodeStates' = [nodeStates EXCEPT
+                        // Kill the src node
+                        ![curCmd.src] = NodeState.NotExist,
+                        // Start the new node
+                        ![curCmd.dst] = NodeState.Init]
+    /*
+     * Not sure about what will happen to the message queue.  Here, I assume
+     * that when the node is killed, all the unprocessed messages will lost.
+     * Another thing is that SCN should send a InitStatus request to the newly
+     * started node, when the node responses a success acknowledge, SCN can
+     * restore the system back to Normal state.
+     */
+    /\ channels' = [channels EXCEPT
+                      ![curCmd.src] = {},
+                      ![curCmd.dst] = {[src |-> SCN,
+                                        msg |-> MessageType.InitStatus]}]
+    /\ dependencies' = [n \in DOMAIN dependencies |->
+                          // Clear the dependency list for src node
+                          CASE  n = curCmd.src -> {}
+                          // Remove src from dependency lists of other nodes
+                            []  n \in reconfigNodes ->
+                              dependencies[n] \ {curCmd.src}
+                          OTHER dependencies[n]]
+    /\ reconfigNodes' = (reconfigNodes \ {curCmd.src}) \cup {curCmd.dst}
+  }}
+
+  /*
+   * Report the current status of a node to SCN. This is useful when SCN wants
+   * to check the status of a node. For instance, in swaping nodes, SCN can
+   * check the status of a newly started node.
+   */
+  NodeInitStatus(n: AppNode) {{
+    LET
+      msg == [src |-> SCN, msg |-> MessageType.InitStatus]
+    IN
+      /\ nodeStates[n] = NodeState.Safe
+      /\ msg \in channels[n]
+      /\ channels' = [channels EXCEPT
+                        ![n] = @ \ {msg},
+                        ![SCN] = @ \cup {[src |-> n,
+                                          msg |-> MessageType.OK]}]
+  }}
+
+  /*
+   * If SCN change the configuration of the nodes, we sohuld wait all the nodes
+   * to enter Safe mode. For example, if the user swaps two nodes, we should
+   * wait until the new node has been in Safe mode.
+   */
+  CommandFinish() {{
+    LET
+      ok == [src |-> curCmd.dst, msg |-> MessageType.OK]
+    IN
+      /\ nodeStates[SCN] = NodeState.Safe
+      /\ \A n \in reconfigNodes: nodeStates[n] = NodeState.Safe
+      /*
+       * SCN recevies the acknowledge from the newly started node.
+       * Note: without this predicate, the preconditions would also be satified
+       * when the system just enters the Safe mode and has not applied the
+       * reconfiguration.
+       */
+      /\ ok \in channels[SCN]
+      /\ channels' = [channels EXCEPT ![SCN] = @ \ {ok}]
+      /\ curCmd' = Null
+  }}
+
+  /*
+   * Similar to EnterSafeMode, if the reconfiguration completes, SCN should
+   * send "leave safe mode" request to all the registered nodes.
+   */
+  LeaveSafeMode() {{
+    /\ nodeStates[SCN] = NodeState.Safe
+    // The current command has completed
+    /\ curCmd = Null
+    // Send "leave safe mode" request to all the nodes in reconfiguration.
+    /\ channels' = [n \in DOMAIN channels |->
+                      IF n \in reconfigNodes
+                        THEN channels[n] \cup
+                              {[src |-> SCN,
+                                msg |-> MessageType.LeaveSafe]}
+                        ELSE channels[n]]
+    /\ nodeStates' = [nodeStates EXCEPT ![SCN] = NodeState.LeaveSafe]
+  }}
+
+  /*
+   * If a node in Safe mode receives a "leave safe mode" request from SCN,
+   * it should back to the Normal mode and send an OK response.
+   */
+  NodeLeaveSafeMode(n: AppNode) {{
+    LET
+      msg == [src |-> SCN, msg |-> MessageType.LeaveSafe]
+    IN
+      /\ nodeStates[n] = NodeState.Safe
+      /\ msg \in channels[n]
+      /\ nodeStates' = [nodeStates EXCEPT ![n] = NodeState.Normal]
+      /\ channels' = [channels EXCEPT
+                        ![SCN] = @ \cup {[src |-> n,
+                                          msg |-> MessageType.OK]},
+                        ![n] = @ \ {msg}]
+  }}
+
+  /*
+   * When SCN receives OK response from all the registered nodes, it should
+   * return to Normal mode.
+   */
+  SCNLeaveSafeMode() {{
+    /\ nodeStates[SCN] = NodeState.LeaveSafe
+    /\ \A n \in reconfigNodes:
+        [src |-> n, msg |-> MessageType.OK] \in channels[SCN]
+    /\ nodeStates' = [nodeStates EXCEPT ![SCN] = NodeState.Normal]
+    /\ channels' = [channels EXCEPT ![SCN] = @ \
+                      {[src |-> n, msg |-> MessageType.OK]:
+                        n \in reconfigNodes}]
+    /\ reconfigNodes' = {}
+  }}
+}
+
+/*
+ * This TLA+ specification is the client/server model under the ROS
+ * reconfiguration framework by 2017 MSIT-ESE team.  See
+ * https://github.com/adityam1/turtlebot_SCN_MSIT_ESE/blob/kinetic_gazebo7
+ * /doc/Framework_model_rev6.docx
+ *
+ * In this specification, I make some critical assumptions:
+ *   1. The application nodes work in a client/server model communicating
+ *   through ROS services (RPC) which is a one-to-one model.
+ *   2. The requests and responses are ROS messages. In this model,
+ *   messages would not lost, but may not be received in order because
+ *   of network delay.
+ *   3. All the ROS nodes work in a single-thread model. It should
+ *   process the incoming requests one-by-one.
+ */
+module ROSService extends ROSReconfig {
+  /*
+   * The set of all the server nodes in a ROS client/server model.
+   */
+  const ServerNode;
+
+   /*
+    * The set of all the client nodes in a ROS client/server model.
+    */
+  const ClientNode;
+
+  /*
+   * The set of all the user application nodes in a ROS system.  In the
+   * context of a service model, there are only client nodes and server
+   * nodes.
+   */
+  override const AppNode = {{ ServerNode \cup ClientNode }};
+
+  /*
+   * The set of all the services in the ROS system. In this abstract model,
+   * I simplified the system. Each server node would only provide one service.
+   */
+  const Services;
+
+  /*
+   * A constant function from ServerNode to Services. It defines the service
+   * a node can provide. In the simplified model, one server node can only
+   * provide one service.
+   */
+  const ServiceProviders;
+  assume {{ ServiceProviders \in [ServerNode -> Services] }};
+
+  /*
+   * A constant function from ClientNode to a subset of Services. It defines
+   * the services a client node depends on.
+   */
+  const ServiceClients;
+  assume {{ ServiceClients \in [ClientNode -> SUBSET Services] }}
+
+  /*
+   * A function from Node to Node.  In the abstract model, every node
+   * should only process on one task at any time.  In a client/server
+   * model, this variable stores the state that for each node a which node
+   * b it is waiting/processing on.
+   */
+  var processOn: {{ [AppNode -> AppNode \cup {Null}] }};
+
+  var curProviders: {{ [Services -> ServerNode \cup {Null}] }};
+
+  var curClients: {{ [Services -> SUBSET ClientNode] }};
+
+  /*
+   * Initialize a server node.
+   */
+  ServerNodeInit(n: ServerNode) {{
+    /\ NodeInit(n)
+    /\ advertiseService(n)
+  }}
+
+  /*
+   * A server node can advertise a service for other clients to invoke. Other
+   * than the process provided by ROS, this operation should also register
+   * the node to SCN to build dependencies.
+   * See: http://wiki.ros.org/roscpp/Overview/Services
+   */
+  advertiseService(n: ServerNode) {{
+    LET
+      s = ServiceProviders[n]
+    IN
+      // I assume that there cannot be two nodes providing the same service at
+      // the same time.
+      /\ curProviders[s] = Null
+      /\ curProviders' = [curProviders EXCEPT ![s] = n]
+      // Register the dependencies.
+      /\ dependencies' = [c \in DOMAIN dependencies |->
+                            // If the client relies on this service
+                            IF c \in curClients[s]
+                              THEN dependencies[c] \cup {n}
+                              ELSE dependencies[c]]
+  }}
+
+  /*
+   * Initialize a client node
+   */
+  ClientNodeInit(n: ClientNode) {{
+    /\ NodeInit(n)
+    /\ serviceClient(n)
+  }}
+
+  /*
+   * A client node use the serviceClient method provided by ROS to create a
+   * client of a service. This operation should also register the dependency
+   * to SCN.
+   * See: http://wiki.ros.org/roscpp/Overview/Services
+   */
+  serviceClient(n: ClientNode) {{
+    LET
+      ss = ServiceClients[n]
+    IN
+      /\ curClients' = [s \in DOMAIN curClients ->
+                          // If the client relies on this service
+                          IF s \in ss THEN curClients[s] \cup {n}
+                                      ELSE curClients[s]]
+      // Update dependencies
+      /\ dependencies' = [dependencies EXCEPT ![n] =
+                            {curProviders[s]: s \in ss} \ {Null}]
+  }}
+
+  /*
+   * A client c sends a request to a server s, waits for the response, and
+   * enters Processing mode.
+   */
+  ClientNodeRequest(c: ClientNode, sv: Services) {{
+    LET
+      s == curProviders[sv]
+    IN
+      // A client is able to request a service only in Normal mode.
+      /\ nodeStates[c] = NodeState.Normal
+      /\ s # Null
+      /\ channels' = [channels EXCEPT
+                        ![s] = @ \cup {[src |-> c,
+                                        msg |-> MessageType.ClientReq]}]
+      /\ nodeStates' = [nodeStates EXCEPT ![c] = NodeState.Processing]
+      /\ processOn' = [processOn EXCEPT ![c] = s]
+  }}
+
+  /*
+   * A server receives a request from a client.  If the server is in Normal
+   * mode, it should then accept the request, start to process it, and enter
+   * Processing mode.  If the server is already in Safe mode, it should
+   * discard the request, that instead of processing the request, it
+   * immediately returns a Error response.
+   */
+  ServerNodeReceive(s: ServerNode, c: ClientNode) {{
+    LET
+      req == [src |-> c, msg |-> MessageType.ClientReq]
+    IN
+      // Receive a request from a client.
+      /\ req \in channels[s]
+      // If the server is in Normal mode, process the request.
+      /\ \/ /\ nodeStates[s] = NodeState.Normal
+            // Consume the request from the message channel
+            /\ channels' = [channels EXCEPT ![s] = @ \ {req}]
+            /\ nodeStates' = [nodeStates EXCEPT ![s] = NodeState.Processing]
+            /\ processOn' = [processOn EXCEPT ![s] = c]
+         // If the server is in Safe mode, discard the request and return
+         // error code.
+         \/ /\ nodeStates[s] = NodeState.Safe
+            /\ channels' = [channels EXCEPT
+                              ![s] = @ \ {req},
+                              // Send error code
+                              ![c] = @ \cup {[src |-> s,
+                                              msg |-> MessageType.Err]}]
+            /\ UNCHANGED <<processOn, nodeStates>>
+  }}
+
+  /*
+   * A server has completed the process for a request and sends response
+   * message to the corresponding request.  Back to the Normal mode.
+   */
+  ServerNodeResponse(s: ServerNode) {{
+    /\ nodeStates[s] = NodeState.Processing
+    /\ nodeStates' = [nodeStates EXCEPT ![s] = NodeState.Normal]
+    // Send response back to the client
+    /\ channels' = [channels EXCEPT ![processOn[s]] =
+                      @ \cup {[src |-> s, msg |-> MessageType.ServerAck]}]
+    /\ processOn' = [processOn EXCEPT ![s] = Null]
+  }}
+
+  /*
+   * A client receives the response from the server it is waiting for and
+   * back to the Normal mode.
+   */
+  ClientNodeReceive(c: ClientNode) {{
+    LET
+      ack == [src |-> processOn[c], msg |-> MessageType.ServerAck]
+      err == [src |-> processOn[c], msg |-> MessageType.Err]
+    IN
+      /\ nodeStates[c] = NodeState.Processing
+      // Receive response or error from the server
+      /\ {ack, err} \cap channels[c] # {}
+      /\ nodeStates' = [nodeStates EXCEPT ![c] = NodeState.Normal]
+      // Consume the response message
+      /\ channels' = [channels EXCEPT ![c] = @ \ {ack, err}]
+      /\ processOn' = [processOn EXCEPT ![c] = Null]
+  }}
+}

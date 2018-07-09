@@ -1,0 +1,76 @@
+/**
+ * This is the abstract module
+ */
+module ProducerConsumer {
+  // Import the Integers module for math operators
+  // import should be translate to extend
+  import Integers;
+
+  const Producer, Consumer;
+  // Max is the capacity of the queue
+  const Max;
+  // Assume max is greater than 0
+  assume {{ Max \in Int /\ Max > 0 }};
+
+  var size: Int;
+
+  /**
+   * Add an item to the product queue
+   */
+  Add() {{
+    // If the size is less than max
+    // otherwise wait for the queue to be available.
+    /\ size < Max
+    /\ size' = size + 1
+  }}
+
+  Remove() {{
+    /\ size > 0
+    /\ size' = size - 1 // Minus one
+  }}
+}
+
+/**
+ * This is the implementation of ProducerConsumer
+ */
+module BlockQueue {
+  import Integers, Sequences;
+
+  const Producer, Consumer, Value;
+  const Max = 3;
+
+  var pc: any;
+  var queue: {{ Seq(Value) }};
+
+  NotFull(self: Producer) {{
+    /\ pc[self] = "NotFull"
+    /\ IF Len(queue) < Max
+        THEN /\ pc' = [pc EXCEPT ![self] = "Add"]
+        ELSE /\ pc' = [pc EXCEPT ![self] = "NotFull"]
+    /\ UNCHANGED <<queue>>
+  }}
+
+  Add(self: Producer) {{
+    /\ pc[self] = "Add"
+    /\ queue' = Append(queue, CHOOSE v \in Value: TRUE)
+    /\ pc' = [pc EXCEPT ![self] = "NotFull"]
+  }}
+
+  NotEmpty(self: Consumer) {{
+    /\ pc[self] = "NotEmpty"
+    /\ IF Len(queue) > 0
+        THEN /\ pc' = [pc EXCEPT ![self] = "Remove"]
+        ELSE /\ pc' = [pc EXCEPT ![self] = "NotEmpty"]
+    /\ UNCHANGED <<queue>>
+  }}
+
+  Remove(self: Consumer, a: S, b: T) {{
+    /\ pc[self] = "Remove"
+    /\ queue' = Tail(queue)
+    /\ pc' = [pc EXCEPT ![self] = "NotEmpty"]
+  }}
+
+  implements ProducerConsumer by {{
+    size <- Len(queue)
+  }}
+}
