@@ -26,7 +26,6 @@ public class ExtTLAModule {
   private List<ExtTLAAssumption> assumptions = new LinkedList<>();
   private List<ExtTLAVariable> variables = new LinkedList<>();
   private List<ExtTLAOperation> operations = new LinkedList<>();
-
   private List<String> shadowed = new LinkedList<>();
 
   public ExtTLAModule(String name) {
@@ -220,13 +219,18 @@ public class ExtTLAModule {
     // Write operations
     operations.forEach(i -> {
       if (shadowed.contains(i.getName())) {
-        i.setShadowed(true);
+        return;
       }
       builder.append(i);
       // Append UNCHANGED <<...>>
-      builder.append(String.format("\n  /\\ UNCHANGED <<%s>>",
-          String.join(", ", i.generateUnchanged(vars, operations))));
+      List<String> unchanged = i.generateUnchanged(vars, operations);
+      if (unchanged.size() > 0) {
+        builder.append(String.format("  /\\ UNCHANGED <<%s>>",
+            String.join(", ", unchanged)));
+      }
+      builder.append('\n');
     });
+    builder.append("\n----\n\n");
 
     // Write Init/Next operation
     writeInitOperation(builder);

@@ -11,7 +11,6 @@ public class ExtTLAOperation {
   private String tla;
   private boolean isOverride = false;
   private String preComment = "";
-  private boolean shadowed;
 
   public ExtTLAOperation(String name, String tla) {
     this.name = name;
@@ -33,7 +32,7 @@ public class ExtTLAOperation {
 
     // I assume that operation starts with an upper case is the main operation
     // which would be a valid next step
-    if (Character.isLowerCase(name.charAt(0)) || isShadowed()) {
+    if (Character.isLowerCase(name.charAt(0))) {
       return unchanged;
     }
 
@@ -65,10 +64,10 @@ public class ExtTLAOperation {
       for (int i = 0; i < args.size(); i++) {
         argNames[i] = args.get(i).toString();
       }
-      return String.format("%s%s(%s) ==%s\n\n", preComment,
+      return String.format("%s%s(%s) ==%s\n", preComment,
           name, String.join(", ", argNames), tla);
     }
-    return String.format("%s%s ==%s\n\n", preComment, name, tla);
+    return String.format("%s%s ==%s\n", preComment, name, tla);
   }
 
   public String getName() {
@@ -111,11 +110,4 @@ public class ExtTLAOperation {
     this.preComment = preComment;
   }
 
-  public boolean isShadowed() {
-    return shadowed;
-  }
-
-  public void setShadowed(boolean shadowed) {
-    this.shadowed = shadowed;
-  }
 }
