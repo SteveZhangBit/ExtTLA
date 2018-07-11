@@ -173,6 +173,14 @@ public class ExtractSpecListener extends edu.cmu.isr.ExtTLABaseListener {
     curModule.addShadow(ctx.IDENT().toString());
   }
 
+  @Override
+  public void enterInvariants(edu.cmu.isr.ExtTLAParser.InvariantsContext ctx) {
+    curModule
+        .addInvariant(ctx.IDENT().toString(),
+            extractTLAExpression(ctx.TLA_EXP()))
+        .setPrecomment(getCommentBefore(ctx.getStart()));
+  }
+
   public ExtTLASpec getSpecObj() {
     return specObj;
   }

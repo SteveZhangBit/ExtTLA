@@ -17,7 +17,8 @@ module_content : ( imports
                  | enumerations
                  | operations
                  | implement
-                 | shadow)* ;
+                 | shadow
+                 | invariants )* ;
 
 imports : 'import' IDENT (',' IDENT)* ';' ;
 
@@ -44,6 +45,8 @@ arg : IDENT ':' (IDENT | TLA_EXP) ;
 implement : 'implements' IDENT ('by' TLA_EXP)? ;
 
 shadow : 'shadow' IDENT ';' ;
+
+invariants : 'inv' IDENT TLA_EXP ;
 
 literal : INT
         | FLOAT

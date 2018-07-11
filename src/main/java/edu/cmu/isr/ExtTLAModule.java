@@ -27,6 +27,7 @@ public class ExtTLAModule {
   private List<ExtTLAVariable> variables = new LinkedList<>();
   private List<ExtTLAOperation> operations = new LinkedList<>();
   private List<String> shadowed = new LinkedList<>();
+  private List<ExtTLAInvariant> invariants = new LinkedList<>();
 
   public ExtTLAModule(String name) {
     this.name = name;
@@ -106,6 +107,12 @@ public class ExtTLAModule {
     shadowed.add(name);
   }
 
+  public ExtTLAInvariant addInvariant(String name, String exp) {
+    ExtTLAInvariant inv = new ExtTLAInvariant(name, exp);
+    invariants.add(inv);
+    return inv;
+  }
+
   /**
    * @param modules
    */
@@ -162,6 +169,7 @@ public class ExtTLAModule {
         }
       });
       extModule.shadowed.addAll(m.shadowed);
+      extModule.invariants.addAll(m.invariants);
     }
     return extModule;
   }
@@ -235,6 +243,9 @@ public class ExtTLAModule {
     // Write Init/Next operation
     writeInitOperation(builder);
     writeNextOperation(builder);
+
+    // Write THEOREMS
+    invariants.forEach(i -> builder.append(i.getText()));
 
     // Create instantiation
     if (instanceModules.size() > 0) {
