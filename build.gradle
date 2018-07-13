@@ -23,7 +23,8 @@ dependencies {
 }
 
 generateGrammarSource {
-    arguments += ["-package", "edu.cmu.isr", "-Werror"]
+    outputDirectory = new File("${project.buildDir}/generated-src/antlr/main/edu/cmu/isr/exttla/grammar".toString())
+    arguments += ["-package", "edu.cmu.isr.exttla.grammar", "-Werror"]
 }
 compileKotlin {
     kotlinOptions {
