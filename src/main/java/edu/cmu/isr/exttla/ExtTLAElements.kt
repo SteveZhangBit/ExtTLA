@@ -37,8 +37,10 @@ data class ExtTLAConstant(
 /**
  *
  */
-data class ExtTLAEnumeration(val name: String) :
-  ExtTLAElement {
+data class ExtTLAEnumeration(
+  val name: String,
+  var override: Boolean = false
+) : ExtTLAElement {
   val items: MutableList<String> = mutableListOf()
   var preComment: String = ""
 
@@ -122,7 +124,7 @@ data class ExtTLAOperation(
     val rest: Set<String> = ops.fold(vars.toMutableSet()) { s, i ->
       // Skip this operation itself
       if (i.name != name) {
-        val p = """(?s).*/\\\s+${i.name}\(.*\).*""".toRegex()
+        val p = """(?s).*/\\\s+${i.name}.*""".toRegex()
         // If this operation contains a sub-operation
         if (exp.matches(p)) {
           s.retainAll(i.generateUnchanged(vars, ops))

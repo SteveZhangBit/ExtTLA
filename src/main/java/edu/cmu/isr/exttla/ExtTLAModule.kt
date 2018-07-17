@@ -41,7 +41,19 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
           extModule.constants.add(it)
         }
       }
-      extModule.enumerations.addAll(m.enumerations)
+      m.enumerations.forEach {
+        if (it.override) {
+          val idx =
+            extModule.enumerations.indexOfFirst { x -> x.name == it.name }
+          if (idx != -1) {
+            extModule.enumerations[idx] = it
+          } else {
+            throw Error("invalid override keyword for enumeration ${it.name}")
+          }
+        } else {
+          extModule.enumerations.add(it)
+        }
+      }
       extModule.assumptions.addAll(m.assumptions)
       extModule.variables.addAll(m.variables)
       m.operations.forEach {
@@ -111,9 +123,11 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
 
     // Write operations
     operations
-      .filter { !shadowed.contains(it.name) }
       .forEach {
         builder.append(it.getText())
+        if (shadowed.contains(it.name)) {
+          return@forEach
+        }
         // Append UNCHANGED <<...>>
         val unchanged =
           it.generateUnchanged(variables.map { it.name }, operations)

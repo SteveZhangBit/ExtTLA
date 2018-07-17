@@ -11,16 +11,26 @@ class ExtTLASpec {
   }
 
   fun extendModule(m: ExtTLAModule): ExtTLAModule {
-    val extModules: MutableList<ExtTLAModule> = m.extendModules
-      .fold(mutableListOf()) { l, it ->
+    return m.extendWith(findParentModules(m))
+  }
+
+  private fun findParentModules(m: ExtTLAModule): MutableList<ExtTLAModule> {
+    return m.extendModules
+      .map {
         if (it in modules) {
-          // Extend the module first
-          l.add(extendModule(modules[it]!!))
-          l
+          val parents = findParentModules(modules[it]!!)
+          parents.add(modules[it]!!)
+          parents
         } else {
           throw Error("no such module $it")
         }
+      }.fold(mutableListOf()) { l, it ->
+        it.forEach { mm ->
+          if (!l.contains(mm)) {
+            l.add(mm)
+          }
+        }
+        l
       }
-    return m.extendWith(extModules)
   }
 }

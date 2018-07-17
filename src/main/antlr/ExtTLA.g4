@@ -34,7 +34,7 @@ variables : 'var' IDENT ':' (IDENT | TLA_EXP) '=' var_init_val ';' ;
 
 var_init_val : IDENT | TLA_EXP ;
 
-enumerations : 'enum' IDENT '=' '{' IDENT (',' IDENT)* '}' ';' ;
+enumerations : 'override'? 'enum' IDENT '=' '{' IDENT (',' IDENT)* '}' ';' ;
 
 operations : 'override'? IDENT '(' arguments? ')' TLA_EXP ;
 

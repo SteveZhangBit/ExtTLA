@@ -91,7 +91,10 @@ class ModuleBuilder(
   }
 
   override fun enterEnumerations(ctx: ExtTLAParser.EnumerationsContext?) {
-    val e = ExtTLAEnumeration(ctx!!.IDENT(0).toString())
+    // Read 'override' key if any
+    val isOverride = ctx!!.getChild(0).text == "override"
+
+    val e = ExtTLAEnumeration(ctx.IDENT(0).toString(), isOverride)
     ctx.IDENT().subList(1, ctx.IDENT().size).forEach {
       e.items.add(it.toString())
     }
