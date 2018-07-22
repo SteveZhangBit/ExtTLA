@@ -127,10 +127,12 @@ class ModuleBuilder(
   override fun enterOperations(ctx: ExtTLAParser.OperationsContext?) {
     // Read 'override' key if any
     val isOverride = ctx!!.getChild(0).text == "override"
+    val isRecursive = ctx.getChild(0).text == "recursive"
+        || ctx.getChild(1).text == "recursive"
 
     val name = ctx.IDENT().toString()
     val exp = extractTLAExpression(ctx.TLA_EXP())
-    val op = ExtTLAOperation(name, exp, isOverride)
+    val op = ExtTLAOperation(name, exp, isOverride, isRecursive)
 
     if (ctx.arguments() != null) {
       ctx.arguments().arg().forEach {

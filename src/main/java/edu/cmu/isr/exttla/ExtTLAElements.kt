@@ -101,7 +101,8 @@ data class ExtTLAInvariant(val name: String, val exp: String) :
 data class ExtTLAOperation(
   val name: String,
   val exp: String,
-  var override: Boolean = false
+  var override: Boolean = false,
+  var recursive: Boolean = false
 ) : ExtTLAElement {
   val args: MutableList<ExtTLAOperationArg> = mutableListOf()
   var preComment: String = ""
@@ -110,16 +111,20 @@ data class ExtTLAOperation(
     args.add(ExtTLAOperationArg(name, type))
   }
 
+  fun generateSubops(ops: List<ExtTLAOperation>): List<ExtTLAOperation> {
+    return ops.fold(mutableListOf()) { l, it ->
+      val p = """(?s).*(/\\|THEN|ELSE)\s+${it.name}.*""".toRegex()
+      if (exp.matches(p)) {
+        l.add(it)
+      }
+      l
+    }
+  }
+
   fun generateUnchanged(
     vars: List<String>,
     ops: List<ExtTLAOperation>
   ): List<String> {
-    // I assume that operation starts with an upper case is the main operation
-    // which would be a valid next step
-    if (Character.isLowerCase(name[0])) {
-      return listOf()
-    }
-
     // Find the changed variables in sub-operations
     val rest: Set<String> = ops.fold(vars.toMutableSet()) { s, i ->
       // Skip this operation itself

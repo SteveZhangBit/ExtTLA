@@ -36,7 +36,7 @@ var_init_val : IDENT | TLA_EXP ;
 
 enumerations : 'override'? 'enum' IDENT '=' '{' IDENT (',' IDENT)* '}' ';' ;
 
-operations : 'override'? IDENT '(' arguments? ')' TLA_EXP ;
+operations : 'override'? 'recursive'? IDENT '(' arguments? ')' TLA_EXP ;
 
 arguments : arg (',' arg)* ;
 

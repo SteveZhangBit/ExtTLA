@@ -122,19 +122,34 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
     builder.append("----\n")
 
     // Write operations
-    operations
-      .forEach {
-        builder.append(it.getText())
-        if (shadowed.contains(it.name)) {
-          return@forEach
+    val sortedOps: MutableList<ExtTLAOperation> = mutableListOf()
+    operations.forEach {
+      it.generateSubops(operations).forEach { subop ->
+        if (sortedOps.indexOf(subop) == -1) {
+          sortedOps.add(subop)
         }
-        // Append UNCHANGED <<...>>
+      }
+      if (sortedOps.indexOf(it) == -1) {
+        sortedOps.add(it)
+      }
+    }
+
+    sortedOps
+      .forEach {
+        // Add RECURSIVE definition
+        if (it.recursive) {
+          builder.append("\nRECURSIVE ${it.name}(${it.args.joinToString(", ") { "_" }})")
+        }
+        builder.append(it.getText())
+        // Find the unchanged variables.
         val unchanged =
           it.generateUnchanged(variables.map { it.name }, operations)
-        if (unchanged.isNotEmpty()) {
-          builder.append("  /\\ UNCHANGED <<${unchanged.joinToString(", ")}>>")
+        // Append UNCHANGED <<...>>
+        if (it.name[0].isUpperCase() && !shadowed.contains(it.name)
+          && unchanged.isNotEmpty()
+        ) {
+          builder.append("  /\\ UNCHANGED <<${unchanged.joinToString(", ")}>>\n")
         }
-        builder.append('\n')
       }
     builder.append("\n----\n\n")
 
