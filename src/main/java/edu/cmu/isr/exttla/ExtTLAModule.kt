@@ -15,8 +15,9 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
   val assumptions: MutableList<ExtTLAAssumption> = mutableListOf()
   val variables: MutableList<ExtTLAVariable> = mutableListOf()
   val operations: MutableList<ExtTLAOperation> = mutableListOf()
-  val shadowed: MutableList<String> = mutableListOf()
+  val hidden: MutableList<String> = mutableListOf()
   val invariants: MutableList<ExtTLAInvariant> = mutableListOf()
+  val properties: MutableList<ExtTLAProperty> = mutableListOf()
 
   fun extendWith(modules: MutableList<ExtTLAModule>): ExtTLAModule {
     if (modules.isEmpty()) {
@@ -27,6 +28,7 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
     val extModule = ExtTLAModule(name)
     extModule.preComment = preComment
     modules.forEach { m ->
+      extModule.extendModules.addAll(m.extendModules)
       extModule.importModules.addAll(m.importModules)
       extModule.instanceModules.addAll(m.instanceModules)
       m.constants.forEach {
@@ -68,8 +70,9 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
           extModule.operations.add(it)
         }
       }
-      extModule.shadowed.addAll(m.shadowed)
+      extModule.hidden.addAll(m.hidden)
       extModule.invariants.addAll(m.invariants)
+      extModule.properties.addAll(m.properties)
     }
     return extModule
   }
@@ -116,6 +119,10 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
       }
     )
 
+    // Instantiate the super modules
+    if (extendModules.size > 0) builder.append('\n')
+    extendModules.forEach { builder.append("$it == INSTANCE $it\n") }
+
     // Write type invariant
     builder.append('\n')
     writeTypeInvariant(builder)
@@ -145,7 +152,7 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
         val unchanged =
           it.generateUnchanged(variables.map { it.name }, operations)
         // Append UNCHANGED <<...>>
-        if (it.name[0].isUpperCase() && !shadowed.contains(it.name)
+        if (it.name[0].isUpperCase() && !hidden.contains(it.name)
           && unchanged.isNotEmpty()
         ) {
           builder.append("  /\\ UNCHANGED <<${unchanged.joinToString(", ")}>>\n")
@@ -160,6 +167,7 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
 
     // Write THEOREMS
     invariants.forEach { builder.append(it.getText()) }
+    properties.forEach { builder.append(it.getText()) }
     builder.append('\n')
 
     // Create instantiation
@@ -226,7 +234,7 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
     builder.append("Next ==\n")
     operations
       .filter {
-        Character.isUpperCase(it.name[0]) && !shadowed.contains(it.name)
+        Character.isUpperCase(it.name[0]) && !hidden.contains(it.name)
       }
       .forEach {
         builder.append("  \\/ ")
@@ -239,7 +247,22 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
         }
         builder.append('\n')
       }
-    builder.append("\nSpec == Init /\\ [][Next]_vars\n")
+    builder.append("\nSpec ==\n  /\\ Init /\\ [][Next]_vars /\\ WF_vars(Next)\n")
+    operations
+      .filter {
+        Character.isUpperCase(it.name[0]) && !hidden.contains(it.name)
+      }
+      .filter { it.strongFair }.forEach {
+        builder.append("  /\\ ")
+        it.args.forEach { builder.append("\\A ${it.name} \\in ${it.type}: ") }
+        builder.append("SF_vars(${it.name}")
+        if (it.args.isNotEmpty()) {
+          builder.append(it.args.joinToString(", ", "(", ")") {
+            it.name
+          })
+        }
+        builder.append(")\n")
+      }
   }
 
 }

@@ -17,8 +17,9 @@ module_content : ( imports
                  | enumerations
                  | operations
                  | implement
-                 | shadow
-                 | invariants )* ;
+                 | hide
+                 | invariants
+                 | properties )* ;
 
 imports : 'import' IDENT (',' IDENT)* ';' ;
 
@@ -36,7 +37,7 @@ var_init_val : IDENT | TLA_EXP ;
 
 enumerations : 'override'? 'enum' IDENT '=' '{' IDENT (',' IDENT)* '}' ';' ;
 
-operations : 'override'? 'recursive'? IDENT '(' arguments? ')' TLA_EXP ;
+operations : 'override'? 'recursive'? 'SF'? IDENT '(' arguments? ')' TLA_EXP ;
 
 arguments : arg (',' arg)* ;
 
@@ -44,9 +45,11 @@ arg : IDENT ':' (IDENT | TLA_EXP) ;
 
 implement : 'implements' IDENT ('by' TLA_EXP)? ;
 
-shadow : 'shadow' IDENT ';' ;
+hide : 'hide' IDENT ';' ;
 
 invariants : 'inv' IDENT TLA_EXP ;
+
+properties : 'prop' IDENT TLA_EXP ;
 
 literal : INT
         | FLOAT

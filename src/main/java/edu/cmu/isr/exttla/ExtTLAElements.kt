@@ -86,23 +86,12 @@ data class ExtTLAInstantiation(
 /**
  *
  */
-data class ExtTLAInvariant(val name: String, val exp: String) :
-  ExtTLAElement {
-  var preComment: String = ""
-
-  override fun getText(): String {
-    return "$preComment${name}Inv ==$exp\n"
-  }
-}
-
-/**
- *
- */
 data class ExtTLAOperation(
   val name: String,
   val exp: String,
-  var override: Boolean = false,
-  var recursive: Boolean = false
+  val override: Boolean = false,
+  val recursive: Boolean = false,
+  val strongFair: Boolean = false
 ) : ExtTLAElement {
   val args: MutableList<ExtTLAOperationArg> = mutableListOf()
   var preComment: String = ""
@@ -111,10 +100,15 @@ data class ExtTLAOperation(
     args.add(ExtTLAOperationArg(name, type))
   }
 
+  private fun matchSubops(opName: String): Boolean {
+    val p =
+      """(?s).*(\\/|/\\|THEN|ELSE)\s+(/\\\s+|\\/\s+)?$opName.*""".toRegex()
+    return exp.matches(p)
+  }
+
   fun generateSubops(ops: List<ExtTLAOperation>): List<ExtTLAOperation> {
     return ops.fold(mutableListOf()) { l, it ->
-      val p = """(?s).*(/\\|THEN|ELSE)\s+${it.name}.*""".toRegex()
-      if (exp.matches(p)) {
+      if (it.name != name && matchSubops(it.name)) {
         l.add(it)
       }
       l
@@ -128,12 +122,9 @@ data class ExtTLAOperation(
     // Find the changed variables in sub-operations
     val rest: Set<String> = ops.fold(vars.toMutableSet()) { s, i ->
       // Skip this operation itself
-      if (i.name != name) {
-        val p = """(?s).*/\\\s+${i.name}.*""".toRegex()
+      if (i.name != name && matchSubops(i.name)) {
         // If this operation contains a sub-operation
-        if (exp.matches(p)) {
-          s.retainAll(i.generateUnchanged(vars, ops))
-        }
+        s.retainAll(i.generateUnchanged(vars, ops))
       }
       s
     }
@@ -166,6 +157,9 @@ data class ExtTLAOperationArg(
   }
 }
 
+/**
+ *
+ */
 data class ExtTLAVariable(
   val name: String,
   val type: String,
@@ -175,5 +169,29 @@ data class ExtTLAVariable(
 
   override fun getText(): String {
     return "${preComment}VARIABLE $name\n"
+  }
+}
+
+/**
+ *
+ */
+data class ExtTLAInvariant(val name: String, val exp: String) :
+  ExtTLAElement {
+  var preComment: String = ""
+
+  override fun getText(): String {
+    return "$preComment${name}Inv ==$exp\n"
+  }
+}
+
+/**
+ *
+ */
+data class ExtTLAProperty(val name: String, val exp: String) :
+  ExtTLAElement {
+  var preComment: String = ""
+
+  override fun getText(): String {
+    return "$preComment${name}Prop ==$exp\n"
   }
 }

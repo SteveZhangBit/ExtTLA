@@ -126,13 +126,13 @@ class ModuleBuilder(
 
   override fun enterOperations(ctx: ExtTLAParser.OperationsContext?) {
     // Read 'override' key if any
-    val isOverride = ctx!!.getChild(0).text == "override"
-    val isRecursive = ctx.getChild(0).text == "recursive"
-        || ctx.getChild(1).text == "recursive"
+    val isOverride = ctx!!.children.find { it.text == "override" } != null
+    val isRecursive = ctx.children.find { it.text == "recursive" } != null
+    val isFS = ctx.children.find { it.text == "SF" } != null
 
     val name = ctx.IDENT().toString()
     val exp = extractTLAExpression(ctx.TLA_EXP())
-    val op = ExtTLAOperation(name, exp, isOverride, isRecursive)
+    val op = ExtTLAOperation(name, exp, isOverride, isRecursive, isFS)
 
     if (ctx.arguments() != null) {
       ctx.arguments().arg().forEach {
@@ -147,8 +147,8 @@ class ModuleBuilder(
     curModule!!.operations.add(op)
   }
 
-  override fun enterShadow(ctx: ExtTLAParser.ShadowContext?) {
-    curModule!!.shadowed.add(ctx!!.IDENT().toString())
+  override fun enterHide(ctx: ExtTLAParser.HideContext?) {
+    curModule!!.hidden.add(ctx!!.IDENT().toString())
   }
 
   override fun enterInvariants(ctx: ExtTLAParser.InvariantsContext?) {
@@ -158,6 +158,15 @@ class ModuleBuilder(
     )
     i.preComment = getCommentBefore(ctx.getStart())
     curModule!!.invariants.add(i)
+  }
+
+  override fun enterProperties(ctx: ExtTLAParser.PropertiesContext?) {
+    val i = ExtTLAProperty(
+      ctx!!.IDENT().toString(),
+      extractTLAExpression(ctx.TLA_EXP())
+    )
+    i.preComment = getCommentBefore(ctx.getStart())
+    curModule!!.properties.add(i)
   }
 
   private fun extractTLAExpression(n: TerminalNode): String {
