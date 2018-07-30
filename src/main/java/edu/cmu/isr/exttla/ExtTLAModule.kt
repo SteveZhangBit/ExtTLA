@@ -28,7 +28,6 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
     val extModule = ExtTLAModule(name)
     extModule.preComment = preComment
     modules.forEach { m ->
-      extModule.extendModules.addAll(m.extendModules)
       extModule.importModules.addAll(m.importModules)
       extModule.instanceModules.addAll(m.instanceModules)
       m.constants.forEach {
@@ -118,10 +117,6 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
         it.name
       }
     )
-
-    // Instantiate the super modules
-    if (extendModules.size > 0) builder.append('\n')
-    extendModules.forEach { builder.append("$it == INSTANCE $it\n") }
 
     // Write type invariant
     builder.append('\n')
