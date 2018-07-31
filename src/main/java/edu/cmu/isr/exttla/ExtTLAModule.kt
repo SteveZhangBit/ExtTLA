@@ -243,21 +243,6 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
         builder.append('\n')
       }
     builder.append("\nSpec ==\n  /\\ Init /\\ [][Next]_vars /\\ WF_vars(Next)\n")
-    operations
-      .filter {
-        Character.isUpperCase(it.name[0]) && !hidden.contains(it.name)
-      }
-      .filter { it.strongFair }.forEach {
-        builder.append("  /\\ ")
-        it.args.forEach { builder.append("\\A ${it.name} \\in ${it.type}: ") }
-        builder.append("SF_vars(${it.name}")
-        if (it.args.isNotEmpty()) {
-          builder.append(it.args.joinToString(", ", "(", ")") {
-            it.name
-          })
-        }
-        builder.append(")\n")
-      }
   }
 
 }

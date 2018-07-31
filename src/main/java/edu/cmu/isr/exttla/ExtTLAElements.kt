@@ -90,8 +90,7 @@ data class ExtTLAOperation(
   val name: String,
   val exp: String,
   val override: Boolean = false,
-  val recursive: Boolean = false,
-  val strongFair: Boolean = false
+  val recursive: Boolean = false
 ) : ExtTLAElement {
   val args: MutableList<ExtTLAOperationArg> = mutableListOf()
   var preComment: String = ""

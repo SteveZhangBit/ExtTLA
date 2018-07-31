@@ -128,11 +128,10 @@ class ModuleBuilder(
     // Read 'override' key if any
     val isOverride = ctx!!.children.find { it.text == "override" } != null
     val isRecursive = ctx.children.find { it.text == "recursive" } != null
-    val isFS = ctx.children.find { it.text == "SF" } != null
 
     val name = ctx.IDENT().toString()
     val exp = extractTLAExpression(ctx.TLA_EXP())
-    val op = ExtTLAOperation(name, exp, isOverride, isRecursive, isFS)
+    val op = ExtTLAOperation(name, exp, isOverride, isRecursive)
 
     if (ctx.arguments() != null) {
       ctx.arguments().arg().forEach {
