@@ -10,7 +10,7 @@ import org.apache.commons.cli.Options
 import java.io.*
 import java.nio.file.FileSystems
 
-class ExtTLAConverter(input: InputStream) {
+class Converter(input: InputStream) {
   private val tokens: CommonTokenStream
   private val parser: ExtTLAParser
 
@@ -20,7 +20,7 @@ class ExtTLAConverter(input: InputStream) {
     parser = ExtTLAParser(tokens)
   }
 
-  fun convert(): ExtTLASpec {
+  fun convert(): Spec {
     // Walk through the tree
     val tree = parser.spec()
     val walker = ParseTreeWalker()
@@ -56,9 +56,9 @@ fun main(args: Array<String>) {
     }
 
     // Initialize a ExtTLA converter for the file
-    val spec = ExtTLASpec()
+    val spec = Spec()
     for (arg in line.args) {
-      val converter = ExtTLAConverter(FileInputStream(arg))
+      val converter = Converter(FileInputStream(arg))
       // Convert the file into TLA specs
       spec.modules.putAll(converter.convert().modules)
     }
@@ -80,7 +80,7 @@ fun main(args: Array<String>) {
 
 private fun writeTLAModule(
   outputDir: String,
-  m: ExtTLAModule
+  m: Module
 ) {
   val filePath =
     FileSystems.getDefault().getPath(outputDir, m.name + ".tla")

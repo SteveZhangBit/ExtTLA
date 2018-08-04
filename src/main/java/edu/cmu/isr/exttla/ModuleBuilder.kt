@@ -14,9 +14,9 @@ class ModuleBuilder(
   private val tokens: BufferedTokenStream
 ) : ExtTLABaseListener() {
 
-  val specObj: ExtTLASpec = ExtTLASpec()
+  val specObj: Spec = Spec()
 
-  private var curModule: ExtTLAModule? = null
+  private var curModule: Module? = null
 
   private fun getCommentBefore(t: Token): String {
     val cmtChannel = tokens.getHiddenTokensToLeft(
@@ -48,12 +48,12 @@ class ModuleBuilder(
   override fun enterImplement(ctx: ExtTLAParser.ImplementContext?) {
     val cmt = getCommentBefore(ctx!!.getStart())
     if (ctx.TLA_EXP() == null) {
-      val i = ExtTLAInstantiation(ctx.IDENT().toString())
+      val i = Instantiation(ctx.IDENT().toString())
       i.preComment = cmt
       curModule!!.instanceModules.add(i)
     } else {
       val tla = extractTLAExpression(ctx.TLA_EXP())
-      val i = ExtTLAInstantiation(ctx.IDENT().toString(), tla)
+      val i = Instantiation(ctx.IDENT().toString(), tla)
       i.preComment = cmt
       curModule!!.instanceModules.add(i)
     }
@@ -61,7 +61,7 @@ class ModuleBuilder(
 
   override fun enterImports(ctx: ExtTLAParser.ImportsContext?) {
     ctx!!.IDENT().forEach {
-      val i = ExtTLAImport(it.toString())
+      val i = Import(it.toString())
       i.preComment = getCommentBefore(ctx.getStart())
       curModule!!.importModules.add(i)
     }
@@ -72,7 +72,7 @@ class ModuleBuilder(
     ctx.const_decl().forEachIndexed { idx, it ->
       val name = it.IDENT().toString()
       val c = if (it.literal() == null && it.TLA_EXP() == null) {
-        ExtTLAConstant(name)
+        Constant(name)
       } else {
         val value = if (it.literal() != null) {
           it.literal().text
@@ -80,7 +80,7 @@ class ModuleBuilder(
           extractTLAExpression(it.TLA_EXP())
         }
         // 'override' keyword is only valid in 'override const a = v'
-        ExtTLAConstant(name, value, isOverride)
+        Constant(name, value, isOverride)
       }
       // Add pre comment
       if (idx == 0) {
@@ -94,7 +94,7 @@ class ModuleBuilder(
     // Read 'override' key if any
     val isOverride = ctx!!.getChild(0).text == "override"
 
-    val e = ExtTLAEnumeration(ctx.IDENT(0).toString(), isOverride)
+    val e = Enumeration(ctx.IDENT(0).toString(), isOverride)
     ctx.IDENT().subList(1, ctx.IDENT().size).forEach {
       e.items.add(it.toString())
     }
@@ -103,7 +103,7 @@ class ModuleBuilder(
   }
 
   override fun enterAssumes(ctx: ExtTLAParser.AssumesContext?) {
-    val a = ExtTLAAssumption(extractTLAExpression(ctx!!.TLA_EXP()))
+    val a = Assumption(extractTLAExpression(ctx!!.TLA_EXP()))
     a.preComment = getCommentBefore(ctx.getStart())
     curModule!!.assumptions.add(a)
   }
@@ -116,9 +116,9 @@ class ModuleBuilder(
       extractTLAExpression(ctx.var_init_val().TLA_EXP())
     }
     val v = if (ctx.TLA_EXP() == null) {
-      ExtTLAVariable(name, ctx.IDENT(1).toString(), initValue)
+      Variable(name, ctx.IDENT(1).toString(), initValue)
     } else {
-      ExtTLAVariable(name, extractTLAExpression(ctx.TLA_EXP()), initValue)
+      Variable(name, extractTLAExpression(ctx.TLA_EXP()), initValue)
     }
     v.preComment = getCommentBefore(ctx.getStart())
     curModule!!.variables.add(v)
@@ -128,10 +128,11 @@ class ModuleBuilder(
     // Read 'override' key if any
     val isOverride = ctx!!.children.find { it.text == "override" } != null
     val isRecursive = ctx.children.find { it.text == "recursive" } != null
+    val fairness = ctx.children.find { it.text == "SF" || it.text == "WF" }
 
     val name = ctx.IDENT().toString()
     val exp = extractTLAExpression(ctx.TLA_EXP())
-    val op = ExtTLAOperation(name, exp, isOverride, isRecursive)
+    val op = Operation(name, exp, isOverride, isRecursive, fairness?.text)
 
     if (ctx.arguments() != null) {
       ctx.arguments().arg().forEach {
@@ -151,7 +152,7 @@ class ModuleBuilder(
   }
 
   override fun enterInvariants(ctx: ExtTLAParser.InvariantsContext?) {
-    val i = ExtTLAInvariant(
+    val i = Invariant(
       ctx!!.IDENT().toString(),
       extractTLAExpression(ctx.TLA_EXP())
     )
@@ -160,12 +161,17 @@ class ModuleBuilder(
   }
 
   override fun enterProperties(ctx: ExtTLAParser.PropertiesContext?) {
-    val i = ExtTLAProperty(
+    val i = Property(
       ctx!!.IDENT().toString(),
       extractTLAExpression(ctx.TLA_EXP())
     )
     i.preComment = getCommentBefore(ctx.getStart())
     curModule!!.properties.add(i)
+  }
+
+  override fun enterFairness(ctx: ExtTLAParser.FairnessContext?) {
+    val exp = extractTLAExpression(ctx!!.TLA_EXP())
+    curModule!!.fairness.add(Fairness(exp.trim()))
   }
 
   private fun extractTLAExpression(n: TerminalNode): String {

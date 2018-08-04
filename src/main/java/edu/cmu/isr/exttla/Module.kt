@@ -3,29 +3,30 @@ package edu.cmu.isr.exttla
 import java.text.SimpleDateFormat
 import java.util.*
 
-class ExtTLAModule(val name: String) : ExtTLAElement {
+class Module(val name: String) : Element {
   private val HEADER_LEN = 77
 
   var preComment: String = ""
   val extendModules: MutableList<String> = mutableListOf()
-  val importModules: MutableList<ExtTLAImport> = mutableListOf()
-  val instanceModules: MutableList<ExtTLAInstantiation> = mutableListOf()
-  val constants: MutableList<ExtTLAConstant> = mutableListOf()
-  val enumerations: MutableList<ExtTLAEnumeration> = mutableListOf()
-  val assumptions: MutableList<ExtTLAAssumption> = mutableListOf()
-  val variables: MutableList<ExtTLAVariable> = mutableListOf()
-  val operations: MutableList<ExtTLAOperation> = mutableListOf()
+  val importModules: MutableList<Import> = mutableListOf()
+  val instanceModules: MutableList<Instantiation> = mutableListOf()
+  val constants: MutableList<Constant> = mutableListOf()
+  val enumerations: MutableList<Enumeration> = mutableListOf()
+  val assumptions: MutableList<Assumption> = mutableListOf()
+  val variables: MutableList<Variable> = mutableListOf()
+  val operations: MutableList<Operation> = mutableListOf()
   val hidden: MutableList<String> = mutableListOf()
-  val invariants: MutableList<ExtTLAInvariant> = mutableListOf()
-  val properties: MutableList<ExtTLAProperty> = mutableListOf()
+  val invariants: MutableList<Invariant> = mutableListOf()
+  val properties: MutableList<Property> = mutableListOf()
+  val fairness: MutableList<Fairness> = mutableListOf()
 
-  fun extendWith(modules: MutableList<ExtTLAModule>): ExtTLAModule {
+  fun extendWith(modules: MutableList<Module>): Module {
     if (modules.isEmpty()) {
       return this
     }
     modules.add(this)
 
-    val extModule = ExtTLAModule(name)
+    val extModule = Module(name)
     extModule.preComment = preComment
     modules.forEach { m ->
       extModule.importModules.addAll(m.importModules)
@@ -72,6 +73,7 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
       extModule.hidden.addAll(m.hidden)
       extModule.invariants.addAll(m.invariants)
       extModule.properties.addAll(m.properties)
+      extModule.fairness.addAll(m.fairness)
     }
     return extModule
   }
@@ -124,7 +126,7 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
     builder.append("----\n")
 
     // Write operations
-    val sortedOps: MutableList<ExtTLAOperation> = mutableListOf()
+    val sortedOps: MutableList<Operation> = mutableListOf()
     operations.forEach {
       it.generateSubops(operations).forEach { subop ->
         if (sortedOps.indexOf(subop) == -1) {
@@ -227,22 +229,33 @@ class ExtTLAModule(val name: String) : ExtTLAElement {
 
   private fun writeNext(builder: StringBuilder) {
     builder.append("Next ==\n")
-    operations
-      .filter {
-        Character.isUpperCase(it.name[0]) && !hidden.contains(it.name)
+
+    val nextOps = operations.filter { Character.isUpperCase(it.name[0]) && !hidden.contains(it.name) }
+    nextOps.forEach {
+      builder.append("  \\/ ")
+      it.args.forEach { builder.append("\\E ${it.name} \\in ${it.type}: ") }
+      builder.append(it.name)
+      if (it.args.isNotEmpty()) {
+        builder.append(it.args.joinToString(", ", "(", ")") {
+          it.name
+        })
       }
-      .forEach {
-        builder.append("  \\/ ")
-        it.args.forEach { builder.append("\\E ${it.name} \\in ${it.type}: ") }
-        builder.append(it.name)
-        if (it.args.isNotEmpty()) {
-          builder.append(it.args.joinToString(", ", "(", ")") {
-            it.name
-          })
-        }
-        builder.append('\n')
-      }
+      builder.append('\n')
+    }
     builder.append("\nSpec ==\n  /\\ Init /\\ [][Next]_vars /\\ WF_vars(Next)\n")
+    // Append fairness
+    nextOps.filter { it.fairness != null }.forEach {
+      builder.append("  /\\ ${it.fairness}_vars(")
+      it.args.forEach { builder.append("\\E ${it.name} \\in ${it.type}: ") }
+      builder.append(it.name)
+      if (it.args.isNotEmpty()) {
+        builder.append(it.args.joinToString(", ", "(", ")") {
+          it.name
+        })
+      }
+      builder.append(")\n")
+    }
+    fairness.forEach { builder.append("  "); builder.append(it.getText()) }
   }
 
 }

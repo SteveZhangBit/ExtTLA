@@ -1,20 +1,20 @@
 package edu.cmu.isr.exttla
 
-class ExtTLASpec {
+class Spec {
 
-  val modules: MutableMap<String, ExtTLAModule> = mutableMapOf()
+  val modules: MutableMap<String, Module> = mutableMapOf()
 
-  fun addNewModule(name: String): ExtTLAModule {
-    val module = ExtTLAModule(name)
+  fun addNewModule(name: String): Module {
+    val module = Module(name)
     modules[name] = module
     return module
   }
 
-  fun extendModule(m: ExtTLAModule): ExtTLAModule {
+  fun extendModule(m: Module): Module {
     return m.extendWith(findParentModules(m))
   }
 
-  private fun findParentModules(m: ExtTLAModule): MutableList<ExtTLAModule> {
+  private fun findParentModules(m: Module): MutableList<Module> {
     return m.extendModules
       .map {
         if (it in modules) {

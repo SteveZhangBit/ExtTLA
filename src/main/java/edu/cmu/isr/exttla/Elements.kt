@@ -1,13 +1,13 @@
 package edu.cmu.isr.exttla
 
-interface ExtTLAElement {
+interface Element {
   fun getText(): String
 }
 
 /**
  *
  */
-data class ExtTLAAssumption(val exp: String) : ExtTLAElement {
+data class Assumption(val exp: String) : Element {
   var preComment: String = ""
 
   override fun getText(): String {
@@ -18,11 +18,11 @@ data class ExtTLAAssumption(val exp: String) : ExtTLAElement {
 /**
  *
  */
-data class ExtTLAConstant(
+data class Constant(
   val name: String,
   val value: String? = null,
   var override: Boolean = false
-) : ExtTLAElement {
+) : Element {
   var preComment: String = ""
 
   override fun getText(): String {
@@ -37,10 +37,10 @@ data class ExtTLAConstant(
 /**
  *
  */
-data class ExtTLAEnumeration(
+data class Enumeration(
   val name: String,
   var override: Boolean = false
-) : ExtTLAElement {
+) : Element {
   val items: MutableList<String> = mutableListOf()
   var preComment: String = ""
 
@@ -57,7 +57,7 @@ data class ExtTLAEnumeration(
 /**
  *
  */
-data class ExtTLAImport(val name: String) : ExtTLAElement {
+data class Import(val name: String) : Element {
   var preComment: String = ""
 
   override fun getText(): String {
@@ -68,10 +68,10 @@ data class ExtTLAImport(val name: String) : ExtTLAElement {
 /**
  *
  */
-data class ExtTLAInstantiation(
+data class Instantiation(
   val name: String,
   val mapping: String? = null
-) : ExtTLAElement {
+) : Element {
   var preComment: String = ""
 
   override fun getText(): String {
@@ -86,17 +86,18 @@ data class ExtTLAInstantiation(
 /**
  *
  */
-data class ExtTLAOperation(
+data class Operation(
   val name: String,
   val exp: String,
   val override: Boolean = false,
-  val recursive: Boolean = false
-) : ExtTLAElement {
-  val args: MutableList<ExtTLAOperationArg> = mutableListOf()
+  val recursive: Boolean = false,
+  val fairness: String?
+) : Element {
+  val args: MutableList<OperationArg> = mutableListOf()
   var preComment: String = ""
 
   fun addArg(name: String, type: String) {
-    args.add(ExtTLAOperationArg(name, type))
+    args.add(OperationArg(name, type))
   }
 
   private fun matchSubops(opName: String): Boolean {
@@ -105,7 +106,7 @@ data class ExtTLAOperation(
     return exp.matches(p)
   }
 
-  fun generateSubops(ops: List<ExtTLAOperation>): List<ExtTLAOperation> {
+  fun generateSubops(ops: List<Operation>): List<Operation> {
     return ops.fold(mutableListOf()) { l, it ->
       if (it.name != name && matchSubops(it.name)) {
         l.add(it)
@@ -116,7 +117,7 @@ data class ExtTLAOperation(
 
   fun generateUnchanged(
     vars: List<String>,
-    ops: List<ExtTLAOperation>
+    ops: List<Operation>
   ): List<String> {
     // Find the changed variables in sub-operations
     val rest: Set<String> = ops.fold(vars.toMutableSet()) { s, i ->
@@ -146,10 +147,10 @@ data class ExtTLAOperation(
 /**
  *
  */
-data class ExtTLAOperationArg(
+data class OperationArg(
   val name: String,
   val type: String
-) : ExtTLAElement {
+) : Element {
 
   override fun getText(): String {
     return name
@@ -159,11 +160,11 @@ data class ExtTLAOperationArg(
 /**
  *
  */
-data class ExtTLAVariable(
+data class Variable(
   val name: String,
   val type: String,
   val initValue: String
-) : ExtTLAElement {
+) : Element {
   var preComment: String = ""
 
   override fun getText(): String {
@@ -174,8 +175,8 @@ data class ExtTLAVariable(
 /**
  *
  */
-data class ExtTLAInvariant(val name: String, val exp: String) :
-  ExtTLAElement {
+data class Invariant(val name: String, val exp: String) :
+  Element {
   var preComment: String = ""
 
   override fun getText(): String {
@@ -186,11 +187,20 @@ data class ExtTLAInvariant(val name: String, val exp: String) :
 /**
  *
  */
-data class ExtTLAProperty(val name: String, val exp: String) :
-  ExtTLAElement {
+data class Property(val name: String, val exp: String) :
+  Element {
   var preComment: String = ""
 
   override fun getText(): String {
     return "$preComment${name}Prop ==$exp\n"
+  }
+}
+
+/**
+ *
+ */
+data class Fairness(val exp: String) : Element {
+  override fun getText(): String {
+    return exp
   }
 }
