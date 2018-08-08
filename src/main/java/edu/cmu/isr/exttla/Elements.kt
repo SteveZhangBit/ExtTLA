@@ -195,12 +195,3 @@ data class Property(val name: String, val exp: String) :
     return "$preComment${name}Prop ==$exp\n"
   }
 }
-
-/**
- *
- */
-data class Fairness(val exp: String) : Element {
-  override fun getText(): String {
-    return exp
-  }
-}

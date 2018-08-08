@@ -128,11 +128,16 @@ class ModuleBuilder(
     // Read 'override' key if any
     val isOverride = ctx!!.children.find { it.text == "override" } != null
     val isRecursive = ctx.children.find { it.text == "recursive" } != null
-    val fairness = ctx.children.find { it.text == "SF" || it.text == "WF" }
+    val fairness = ctx.children.find { it.text == "SF" || it.text == "WF" || it.text == "fairness" }
+
+    var fairnessStr: String? = fairness?.text
+    if (fairnessStr != null && fairnessStr != "SF" && fairnessStr != "WF") {
+      fairnessStr = extractTLAExpression(ctx.TLA_EXP(1)).trim()
+    }
 
     val name = ctx.IDENT().toString()
-    val exp = extractTLAExpression(ctx.TLA_EXP())
-    val op = Operation(name, exp, isOverride, isRecursive, fairness?.text)
+    val exp = extractTLAExpression(ctx.TLA_EXP(0))
+    val op = Operation(name, exp, isOverride, isRecursive, fairnessStr)
 
     if (ctx.arguments() != null) {
       ctx.arguments().arg().forEach {
@@ -167,11 +172,6 @@ class ModuleBuilder(
     )
     i.preComment = getCommentBefore(ctx.getStart())
     curModule!!.properties.add(i)
-  }
-
-  override fun enterFairness(ctx: ExtTLAParser.FairnessContext?) {
-    val exp = extractTLAExpression(ctx!!.TLA_EXP())
-    curModule!!.fairness.add(Fairness(exp.trim()))
   }
 
   private fun extractTLAExpression(n: TerminalNode): String {

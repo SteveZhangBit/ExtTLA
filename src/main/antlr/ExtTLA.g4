@@ -19,8 +19,7 @@ module_content : ( imports
                  | implement
                  | hide
                  | invariants
-                 | properties
-                 | fairness )* ;
+                 | properties )* ;
 
 imports : 'import' IDENT (',' IDENT)* ';' ;
 
@@ -38,7 +37,7 @@ var_init_val : IDENT | TLA_EXP ;
 
 enumerations : 'override'? 'enum' IDENT '=' '{' IDENT (',' IDENT)* '}' ';' ;
 
-operations : 'override'? 'recursive'? ('SF' | 'WF')? IDENT '(' arguments? ')' TLA_EXP ;
+operations : 'override'? 'recursive'? ('SF' | 'WF')? IDENT '(' arguments? ')' TLA_EXP ('fairness' TLA_EXP)? ;
 
 arguments : arg (',' arg)* ;
 
@@ -51,8 +50,6 @@ hide : 'hide' IDENT ';' ;
 invariants : 'inv' IDENT TLA_EXP ;
 
 properties : 'prop' IDENT TLA_EXP ;
-
-fairness : 'fairness' TLA_EXP ;
 
 literal : INT
         | FLOAT

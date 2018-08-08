@@ -18,7 +18,6 @@ class Module(val name: String) : Element {
   val hidden: MutableList<String> = mutableListOf()
   val invariants: MutableList<Invariant> = mutableListOf()
   val properties: MutableList<Property> = mutableListOf()
-  val fairness: MutableList<Fairness> = mutableListOf()
 
   fun extendWith(modules: MutableList<Module>): Module {
     if (modules.isEmpty()) {
@@ -73,7 +72,6 @@ class Module(val name: String) : Element {
       extModule.hidden.addAll(m.hidden)
       extModule.invariants.addAll(m.invariants)
       extModule.properties.addAll(m.properties)
-      extModule.fairness.addAll(m.fairness)
     }
     return extModule
   }
@@ -245,17 +243,20 @@ class Module(val name: String) : Element {
     builder.append("\nSpec ==\n  /\\ Init /\\ [][Next]_vars /\\ WF_vars(Next)\n")
     // Append fairness
     nextOps.filter { it.fairness != null }.forEach {
-      builder.append("  /\\ ${it.fairness}_vars(")
-      it.args.forEach { builder.append("\\E ${it.name} \\in ${it.type}: ") }
-      builder.append(it.name)
-      if (it.args.isNotEmpty()) {
-        builder.append(it.args.joinToString(", ", "(", ")") {
-          it.name
-        })
+      if (it.fairness == "WF" || it.fairness == "SF") {
+        builder.append("  /\\ ${it.fairness}_vars(")
+        it.args.forEach { builder.append("\\E ${it.name} \\in ${it.type}: ") }
+        builder.append(it.name)
+        if (it.args.isNotEmpty()) {
+          builder.append(it.args.joinToString(", ", "(", ")") {
+            it.name
+          })
+        }
+        builder.append(")\n")
+      } else {
+        builder.append("  /\\ ${it.fairness}\n")
       }
-      builder.append(")\n")
     }
-    fairness.forEach { builder.append("  "); builder.append(it.getText()) }
   }
 
 }
