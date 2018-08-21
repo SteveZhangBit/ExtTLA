@@ -1,5 +1,7 @@
 package edu.cmu.isr.exttla
 
+import java.util.regex.Pattern
+
 interface Element {
   fun getText(): String
 }
@@ -95,6 +97,16 @@ data class Operation(
 ) : Element {
   val args: MutableList<OperationArg> = mutableListOf()
   var preComment: String = ""
+  private val changed: MutableSet<String> = mutableSetOf()
+
+  init {
+    // Find all the changed variables in this operation
+    val r = Pattern.compile("""(\w+)'""")
+    val m = r.matcher(exp)
+    while (m.find()) {
+      changed.add(m.group(1))
+    }
+  }
 
   fun addArg(name: String, type: String) {
     args.add(OperationArg(name, type))
@@ -106,7 +118,7 @@ data class Operation(
     return exp.matches(p)
   }
 
-  fun generateSubops(ops: List<Operation>): List<Operation> {
+  fun generateSubOps(ops: List<Operation>): List<Operation> {
     return ops.fold(mutableListOf()) { l, it ->
       if (it.name != name && matchSubops(it.name)) {
         l.add(it)
@@ -115,24 +127,15 @@ data class Operation(
     }
   }
 
-  fun generateUnchanged(
-    vars: List<String>,
-    ops: List<Operation>
-  ): List<String> {
-    // Find the changed variables in sub-operations
-    val rest: Set<String> = ops.fold(vars.toMutableSet()) { s, i ->
-      // Skip this operation itself
-      if (i.name != name && matchSubops(i.name)) {
-        // If this operation contains a sub-operation
-        s.retainAll(i.generateUnchanged(vars, ops))
+  fun generateUnchanged(vars: List<String>, ops: List<Operation>): List<String> {
+    val s = vars.toMutableSet()
+    ops.forEach {
+      if (it.name != name && matchSubops(it.name)) {
+        s.retainAll(it.generateUnchanged(vars, ops))
       }
-      s
     }
-
-    return rest.toList().filter {
-      val p = """(?s).*$it'\s*=.*""".toRegex()
-      !exp.matches(p)
-    }
+    s.removeAll(changed)
+    return s.toList()
   }
 
   override fun getText(): String {

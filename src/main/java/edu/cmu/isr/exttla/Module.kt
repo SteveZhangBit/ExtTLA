@@ -85,38 +85,24 @@ class Module(val name: String) : Element {
     // Create EXTENDS statement for imports
     if (importModules.size > 0) {
       importModules.forEach { builder.append(it.preComment) }
-      builder.append(
-        importModules.joinToString(
-          ", ",
-          "EXTENDS ",
-          "\n"
-        ) { it.name })
+      builder.append(importModules.joinToString(", ", "EXTENDS ", "\n") { it.name })
     }
 
     // Create enumerations
     enumerations.forEach { builder.append(it.getText()) }
 
     // Create CONSTANT and constant definition statements
-    constants.filter { it.value == null }.forEach {
-      builder.append(it.getText())
-    }
+    constants.filter { it.value == null }.forEach { builder.append(it.getText()) }
     // Create constant declarations
-    constants.filter { it.value != null }.forEach {
-      builder.append(it.getText())
-    }
+    constants.filter { it.value != null }.forEach { builder.append(it.getText()) }
 
     // Create ASSUME statements
-    builder.append("\n\\* Begin assumption definitions\n")
     assumptions.forEach { builder.append(it.getText()) }
-    builder.append("\n\\* End of assumption definitions\n")
+    builder.append('\n')
 
     // Create variables
     variables.forEach { builder.append(it.getText()) }
-    builder.append(
-      variables.joinToString(", ", "\nvars == <<", ">>\n") {
-        it.name
-      }
-    )
+    builder.append(variables.joinToString(", ", "\nvars == <<", ">>\n") { it.name })
 
     // Write type invariant
     builder.append('\n')
@@ -126,7 +112,7 @@ class Module(val name: String) : Element {
     // Write operations
     val sortedOps: MutableList<Operation> = mutableListOf()
     operations.forEach {
-      it.generateSubops(operations).forEach { subop ->
+      it.generateSubOps(operations).forEach { subop ->
         if (sortedOps.indexOf(subop) == -1) {
           sortedOps.add(subop)
         }
@@ -136,23 +122,21 @@ class Module(val name: String) : Element {
       }
     }
 
-    sortedOps
-      .forEach {
-        // Add RECURSIVE definition
-        if (it.recursive) {
-          builder.append("\nRECURSIVE ${it.name}(${it.args.joinToString(", ") { "_" }})")
-        }
-        builder.append(it.getText())
-        // Find the unchanged variables.
-        val unchanged =
-          it.generateUnchanged(variables.map { it.name }, operations)
+    sortedOps.forEach {
+      // Add RECURSIVE definition
+      if (it.recursive) {
+        builder.append("\nRECURSIVE ${it.name}(${it.args.joinToString(", ") { "_" }})")
+      }
+      builder.append(it.getText())
+      // Find the unchanged variables.
+      if (it.name[0].isUpperCase() && !hidden.contains(it.name)) {
+        val unchanged = it.generateUnchanged(variables.map { it.name }, operations)
         // Append UNCHANGED <<...>>
-        if (it.name[0].isUpperCase() && !hidden.contains(it.name)
-          && unchanged.isNotEmpty()
-        ) {
+        if (unchanged.isNotEmpty()) {
           builder.append("  /\\ UNCHANGED <<${unchanged.joinToString(", ")}>>\n")
         }
       }
+    }
     builder.append("\n----\n\n")
 
     // Write Init/Next operation
@@ -166,9 +150,7 @@ class Module(val name: String) : Element {
     builder.append('\n')
 
     // Create instantiation
-    if (instanceModules.isNotEmpty()) {
-      instanceModules.forEach { builder.append(it.getText()) }
-    }
+    if (instanceModules.isNotEmpty()) instanceModules.forEach { builder.append(it.getText()) }
 
     // Create module footer
     writeModuleFooter(builder)
@@ -176,9 +158,7 @@ class Module(val name: String) : Element {
     var tlaSpec = builder.toString()
     // Replace all the enumeration items with corresponding string values
     enumerations.forEach { e ->
-      e.items.forEach {
-        tlaSpec = tlaSpec.replace("${e.name}.$it", e.getItemString(it))
-      }
+      e.items.forEach { tlaSpec = tlaSpec.replace("${e.name}.$it", e.getItemString(it)) }
     }
     return tlaSpec
   }
