@@ -3,6 +3,14 @@ package edu.cmu.isr.exttla
 import java.text.SimpleDateFormat
 import java.util.*
 
+fun formalizeVars(s: String, indent: String = "  "): String {
+  if (s.length <= 80) {
+    return s
+  }
+  val idx = s.substring(0, 80).lastIndexOf(',')
+  return s.substring(0, idx+1) + "\n" + indent + formalizeVars(s.substring(idx+1), indent).trimStart()
+}
+
 class Module(val name: String) : Element {
   private val HEADER_LEN = 77
 
@@ -61,7 +69,14 @@ class Module(val name: String) : Element {
         if (it.override) {
           val idx = extModule.operations.indexOfFirst { x -> x.name == it.name }
           if (idx != -1) {
+            // Add super_<op> to the module
+            val tmp = extModule.operations[idx]
+            val copy = tmp.copy(name="super_${it.name}")
+            copy.preComment = "\n\\* Extend from ${m.name}" + tmp.preComment
+            copy.args.addAll(tmp.args)
+
             extModule.operations[idx] = it
+            extModule.operations.add(idx, copy)
           } else {
             throw Error("invalid override keyword for operation ${it.name}")
           }
@@ -102,7 +117,11 @@ class Module(val name: String) : Element {
 
     // Create variables
     variables.forEach { builder.append(it.getText()) }
-    builder.append(variables.joinToString(", ", "\nvars == <<", ">>\n") { it.name })
+    builder.append(formalizeVars(
+      variables.joinToString(", ", "\nvars == <<", ">>\n") { it.name }))
+
+    // Create instantiation
+    if (instanceModules.isNotEmpty()) instanceModules.forEach { builder.append(it.getText()) }
 
     // Write type invariant
     builder.append('\n')
@@ -123,17 +142,15 @@ class Module(val name: String) : Element {
     }
 
     sortedOps.forEach {
-      // Add RECURSIVE definition
-      if (it.recursive) {
-        builder.append("\nRECURSIVE ${it.name}(${it.args.joinToString(", ") { "_" }})")
-      }
       builder.append(it.getText())
       // Find the unchanged variables.
       if (it.name[0].isUpperCase() && !hidden.contains(it.name)) {
         val unchanged = it.generateUnchanged(variables.map { it.name }, operations)
         // Append UNCHANGED <<...>>
         if (unchanged.isNotEmpty()) {
-          builder.append("  /\\ UNCHANGED <<${unchanged.joinToString(", ")}>>\n")
+          builder.append(formalizeVars(
+            "  /\\ UNCHANGED <<${unchanged.joinToString(", ")}>>\n",
+            "      "))
         }
       }
     }
@@ -148,9 +165,6 @@ class Module(val name: String) : Element {
     invariants.forEach { builder.append(it.getText()) }
     properties.forEach { builder.append(it.getText()) }
     builder.append('\n')
-
-    // Create instantiation
-    if (instanceModules.isNotEmpty()) instanceModules.forEach { builder.append(it.getText()) }
 
     // Create module footer
     writeModuleFooter(builder)

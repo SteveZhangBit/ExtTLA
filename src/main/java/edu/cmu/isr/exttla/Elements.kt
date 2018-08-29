@@ -113,14 +113,15 @@ data class Operation(
   }
 
   private fun matchSubops(opName: String): Boolean {
-    val p =
-      """(?s).*(\\/|/\\|THEN|ELSE)\s+(/\\\s+|\\/\s+)?$opName.*""".toRegex()
-    return exp.matches(p)
+//    val p = """(?s).*(\\/|/\\|THEN|ELSE)\s+(/\\\s+|\\/\s+)?((\\E|\\A).*?:\s+)?$opName.*""".toRegex()
+//    return exp.matches(p)
+    return exp.contains("""\b$opName(\\(.*?\\))?\b""".toRegex())
   }
 
   fun generateSubOps(ops: List<Operation>): List<Operation> {
     return ops.fold(mutableListOf()) { l, it ->
       if (it.name != name && matchSubops(it.name)) {
+        l.addAll(it.generateSubOps(ops))
         l.add(it)
       }
       l
@@ -139,10 +140,16 @@ data class Operation(
   }
 
   override fun getText(): String {
-    return if (args.size > 0) {
-      "$preComment$name(${args.joinToString(", ") { it.getText() }}) ==$exp\n"
+    // Add RECURSIVE definition
+    val recursion = if (recursive) {
+      "RECURSIVE $name(${args.joinToString(", ") { "_" }})\n"
     } else {
-      "$preComment$name ==$exp\n"
+      ""
+    }
+    return if (args.size > 0) {
+      "$preComment$recursion$name(${args.joinToString(", ") { it.getText() }}) ==$exp\n"
+    } else {
+      "$preComment$recursion$name ==$exp\n"
     }
   }
 }
